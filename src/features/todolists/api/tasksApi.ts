@@ -25,6 +25,64 @@ export const tasksApi = baseApi.injectEndpoints({
         }),
         invalidatesTags: (_result, _error, { todolistId }) => [{ type: "Task", id: todolistId }],
       }),
+      reorderTask: build.mutation<
+        BaseResponse,
+        { todolistId: string; taskId: string; putAfterItemId: string | null }
+      >({
+        query: ({ todolistId, taskId, putAfterItemId }) => ({
+          url: `todo-lists/${todolistId}/tasks/${taskId}/reorder`,
+          method: "PUT",
+          body: { putAfterItemId },
+        }),
+        onQueryStarted: async ({ todolistId, taskId, putAfterItemId }, { dispatch, queryFulfilled, getState }) => {
+          // 1. Находим все активные запросы getTasks для этого тудулиста (учитывая пагинацию)
+          const args = tasksApi.util.selectCachedArgsForQuery(getState(), 'getTasks');
+          const patchResults: { undo: () => void }[] = [];
+
+          args.forEach((arg) => {
+            // Применяем патч к каждому кэшу, где есть этот todolistId
+            if (arg.id === todolistId) {
+              patchResults.push(
+                dispatch(
+                  tasksApi.util.updateQueryData("getTasks", arg, (state) => {
+                    const items = state.items;
+                    const currentIndex = items.findIndex((t) => t.id === taskId);
+
+                    if (currentIndex !== -1) {
+                      // Извлекаем таску из массива
+                      const [movedTask] = items.splice(currentIndex, 1);
+
+                      // Определяем новый индекс
+                      if (putAfterItemId === null) {
+                        // Если пустой ID — ставим в самое начало
+                        items.unshift(movedTask);
+                      } else {
+                        // Ищем индекс таски, ПОСЛЕ которой нужно вставить
+                        const targetIndex = items.findIndex((t) => t.id === putAfterItemId);
+                        if (targetIndex !== -1) {
+                          items.splice(targetIndex + 1, 0, movedTask);
+                        } else {
+                          // Если таска не найдена в текущем кэше (например, на другой странице),
+                          // возвращаем её назад, чтобы не потерять данные
+                          items.splice(currentIndex, 0, movedTask);
+                        }
+                      }
+                    }
+                  })
+                )
+              );
+            }
+          });
+
+          try {
+            await queryFulfilled;
+          } catch (error) {
+            // Если сервер ответил ошибкой — откатываем все изменения
+            patchResults.forEach((patchResult) => patchResult.undo());
+          }
+        },
+        invalidatesTags: (_result, _error, { todolistId }) => [{ type: "Task", id: todolistId }],
+      }),
       updateTask: build.mutation<
         BaseResponse<{ item: DomainTask }>,
         { todolistId: string; taskId: string; model: UpdateTaskModel }
@@ -62,5 +120,5 @@ export const tasksApi = baseApi.injectEndpoints({
   },
 })
 
-export const { useGetTasksQuery, useAddTaskMutation, useRemoveTaskMutation, useUpdateTaskMutation } = tasksApi
+export const { useGetTasksQuery, useAddTaskMutation, useRemoveTaskMutation, useUpdateTaskMutation, useReorderTaskMutation } = tasksApi
 

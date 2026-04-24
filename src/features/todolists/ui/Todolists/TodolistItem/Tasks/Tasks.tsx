@@ -1,5 +1,5 @@
 import { TaskStatus } from "@/common/enums"
-import { useGetTasksQuery } from "@/features/todolists/api/tasksApi"
+import { useGetTasksQuery, useReorderTaskMutation } from "@/features/todolists/api/tasksApi"
 import type { DomainTodolist } from "@/features/todolists/lib/types"
 import List from "@mui/material/List"
 import { TaskItem } from "./TaskItem/TaskItem"
@@ -8,6 +8,7 @@ import {
   TasksPagination
 } from "@/features/todolists/ui/Todolists/TodolistItem/Tasks/TasksPagination/TasksPagination.tsx"
 import { useState } from "react"
+import { DragDropProvider, useDroppable } from "@dnd-kit/react"
 
 type Props = {
   todolist: DomainTodolist
@@ -15,10 +16,9 @@ type Props = {
 
 export const Tasks = ({ todolist }: Props) => {
   const { id, filter } = todolist
-
   const [page, setPage] = useState(1)
-
-  const { data, isLoading, isFetching } = useGetTasksQuery({id, params: {page}})
+  const { data, isLoading } = useGetTasksQuery({id, params: {page}});
+  const [reorderTask] = useReorderTaskMutation()
 
   let filteredTasks = data?.items
   if (filter === "active") {
@@ -28,20 +28,42 @@ export const Tasks = ({ todolist }: Props) => {
     filteredTasks = filteredTasks?.filter((task) => task.status === TaskStatus.Completed)
   }
 
-  if (isLoading || isFetching) {
+  const { ref: droppableRef } = useDroppable({
+    id: id,
+  });
+
+  const handleDragEnd = (event: any) => {
+    if (event.canceled) return;
+
+    const { source, target } = event.operation;
+    if (target) {
+      const taskId = source.id as string;
+      const targetId = target.id as string;
+      const putAfterItemId = targetId === `droppable-${id}` ? null : targetId;
+      if (taskId !== targetId) {
+        reorderTask({
+          todolistId: id,
+          taskId: taskId,
+          putAfterItemId: putAfterItemId
+        })
+      }
+    }
+  };
+
+  if (isLoading) {
     return <TasksSkeleton />
   }
 
   return (
-    <>
+    <DragDropProvider onDragEnd={handleDragEnd}>
       {filteredTasks?.length === 0 ? (
         <p>Тасок нет</p>
       ) : (
         <>
-          <List>{filteredTasks?.map((task) => <TaskItem key={task.id} task={task} todolist={todolist} />)}</List>
+          <List ref={droppableRef}>{filteredTasks?.map((task) => <TaskItem key={task.id} task={task} todolist={todolist} />)}</List>
           <TasksPagination totalCount={data?.totalCount || 0} page={page} setPage={setPage} />
         </>
       )}
-    </>
+    </DragDropProvider>
   )
 }

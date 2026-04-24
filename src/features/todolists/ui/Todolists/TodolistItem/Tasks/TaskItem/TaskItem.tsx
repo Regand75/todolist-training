@@ -10,6 +10,7 @@ import IconButton from "@mui/material/IconButton"
 import ListItem from "@mui/material/ListItem"
 import type { ChangeEvent } from "react"
 import { getListItemSx } from "./TaskItem.styles"
+import { useDraggable, useDroppable } from "@dnd-kit/react"
 
 type Props = {
   task: DomainTask
@@ -19,6 +20,14 @@ type Props = {
 export const TaskItem = ({ task, todolist }: Props) => {
   const [removeTask] = useRemoveTaskMutation()
   const [updateTask] = useUpdateTaskMutation()
+
+  const { ref: dragRef, isDragging } = useDraggable({ id: task.id });
+  const { ref: dropRef } = useDroppable({ id: task.id });
+
+  const combinedRef = (node: HTMLLIElement | null) => {
+    dragRef(node);
+    dropRef(node);
+  };
 
   const deleteTask = () => {
     removeTask({ todolistId: todolist.id, taskId: task.id })
@@ -39,7 +48,7 @@ export const TaskItem = ({ task, todolist }: Props) => {
   const disabled = todolist.entityStatus === "loading"
 
   return (
-    <ListItem sx={getListItemSx(isTaskCompleted)}>
+    <ListItem ref={combinedRef} sx={getListItemSx(isTaskCompleted, isDragging)}>
       <div>
         <Checkbox checked={isTaskCompleted} onChange={changeTaskStatus} disabled={disabled} />
         <EditableSpan value={task.title} onChange={changeTaskTitle} disabled={disabled} />
