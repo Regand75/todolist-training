@@ -27,10 +27,14 @@ export const handleError = (
         }
         break
       default:
-        if (result.error.status >= 500 && result.error.status < 600) {
-          error = "Server error occurred. Please try again later."
+        if (typeof result.error.status === 'number') {
+          if (result.error.status >= 500 && result.error.status < 600) {
+            error = "Server error occurred. Please try again later."
+          } else {
+            error = JSON.stringify(result.error)
+          }
         } else {
-          error = JSON.stringify(result.error)
+          error = result.error.error
         }
         break
     }
