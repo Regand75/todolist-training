@@ -36,17 +36,33 @@ export const Tasks = ({ todolist }: Props) => {
     if (event.canceled) return;
 
     const { source, target } = event.operation;
-    if (target) {
+
+    if (target && filteredTasks) {
       const taskId = source.id as string;
       const targetId = target.id as string;
-      const putAfterItemId = targetId === `droppable-${id}` ? null : targetId;
-      if (taskId !== targetId) {
-        reorderTask({
-          todolistId: id,
-          taskId: taskId,
-          putAfterItemId: putAfterItemId
-        })
+
+      const oldIndex = filteredTasks.findIndex(t => t.id === taskId);
+      const newIndex = filteredTasks.findIndex(t => t.id === targetId);
+
+      if (taskId === targetId || newIndex === -1) return;
+
+      let putAfterItemId: string | null = null;
+
+      if (newIndex < oldIndex) {
+        if (newIndex === 0) {
+          putAfterItemId = page === 1 ? null : null;
+        } else {
+          putAfterItemId = filteredTasks[newIndex - 1].id;
+        }
+      } else {
+        putAfterItemId = targetId;
       }
+
+      reorderTask({
+        todolistId: id,
+        taskId: taskId,
+        putAfterItemId: putAfterItemId
+      });
     }
   };
 
